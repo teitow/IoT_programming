@@ -35,5 +35,6 @@
 - 게임 종료 버튼을 누르거나, 재시작 버튼을 눌러 새 게임을 시작할 수 있습니다.
 
 ## 게임 플로우차트
-![숫자야구게임 플로우차트](https://github.com/teitow/IoT_programming/blob/main/image/%EC%88%AB%EC%9E%90%EC%95%BC%EA%B5%AC%EA%B2%8C%EC%9E%84%ED%94%8C%EB%A1%9C%EC%9A%B0%EC%B0%A8%ED%8A%B8.drawio.png)
+<img src="https://github.com/teitow/IoT_programming/blob/main/image/%EC%88%AB%EC%9E%90%EC%95%BC%EA%B5%AC%EA%B2%8C%EC%9E%84%ED%94%8C%EB%A1%9C%EC%9A%B0%EC%B0%A8%ED%8A%B8.drawio.png" width="50%" height="50%">
+
 
