@@ -1,4 +1,4 @@
-다음주 목요일 0509
+목요일 0509
 프로젝트 계획 발표
 김수영 김주원 박건희
 
@@ -24,12 +24,6 @@ https://github.com/2MinJoo/Embedded_rhythm_game
 
 
 
-미로에서 3~4개의 간단한 게임(폭탄해체, 가위바위보, 블랙잭)을 하면 생기는 탈출구를 찾아 제한시간내에 탈출하는 게임
-
-카지노 게임 : 블랙잭, 슬롯머신 등 게임 플레이 가능, 소정의 돈을 들고 시작, 얼마 이상 가면 승리, 
-
-
-
 
 대략 예시
 [[
@@ -42,20 +36,11 @@ IOT 머신 사진을 찍어서 어떤 기능을 사용하는지? 기계 계기�
 ]]
 
 
-각 팀별로 주제를 써주길 바란다?
-
 [0팀] CMOS 영상센서를 이용한 ㅇㅇㅇ 인식 알고리즘 (camera sensor, LCD, dot matrix) 깃허브 주소
 
-2장이란게 뭔 소리지?
+2장?
 
 Tact Switch,		Dot Matrix,		CharacterLCD,	LEDs		FND 
 12개버튼		8x8			디스플레이		8개 led	4개 숫자
 
 
-초대용 깃허브 메일주소
-
-https://github.com/users/teitow/projects/1/settings/access
-에서 invite collaborators 해서 초대하자.
-admin 권한으로. 
-https://github.com/teitow/IoT_programming/settings/access
-에서도 Add People하고
