@@ -56,3 +56,26 @@ Tact Switch,		Dot Matrix,		CharacterLCD,	LEDs		FND
 야구 게임 테스트 방법
 1. 각 라운드에 해당하는 추측 숫자 개수 초과 or 미만으로 적어본다.
 2. 스코어 계산이 제대로 되었나 확인해본다.
+
+LED 빨노주파 빨노주파
+2345	6789
+0123	4567
+252page~269
+
+#define led "/dev/led"
+
+CLCD는 초기화 필수.
+IO장치를 동시에 접근하면 오류가 발생?????
+
+
+FND (7-segment)
+270~284PAGE
+
+dot matrix
+299~
+
+tact switch
+312~321page까지.
+
+arm-linux-gnueabi-g++ -o number_baseball source_file.c
+

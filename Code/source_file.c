@@ -131,7 +131,7 @@ void led_control(int led_bits, int count) {
 
 // Tact Switch 입력 읽기
 char read_switch() {
-    unsigned char state;
+    unsigned int state;
     read(fd_switch, &state, sizeof(state));
     switch (state) {
     case 0x01: return '7';
@@ -181,6 +181,7 @@ void get_player_input(char* buffer, int length, int round) {
 int main() {
     char secret_number1[5], secret_number2[5], guess[10] = { 0 };
     int strikes, balls, turn = 1, score1 = 1000, score2 = 1000, rounds = 2, digits[2] = { 3, 4 };
+    char clcd_buffer[32];  // 여기에 clcd_buffer 변수를 선언
 
     fd_led = open(DEV_LED, O_RDWR);
     if (fd_led < 0) {
@@ -201,7 +202,6 @@ int main() {
     display_baseball(); // 게임 시작 전에 "BASEBALL" 표시
 
     for (int round = 0; round < rounds; round++) {
-        char clcd_buffer[32];
         snprintf(clcd_buffer, sizeof(clcd_buffer), "Round %d: Guess %d digits\n", round + 1, digits[round]);
         clcd_write(clcd_buffer);
 
