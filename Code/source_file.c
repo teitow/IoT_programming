@@ -9,7 +9,8 @@
 #define DEV_LED "/dev/led"
 #define DEV_SWITCH "/dev/tactsw"
 #define DEV_CLCD "/dev/clcd"
-#define DEV_DOT "/dev/dot" 
+#define DEV_DOT "/dev/dot"
+#define DEV_FND "/dev/fnd"  // FND 장치
 
 // LED 정의
 #define LED_RED_0    0x01
@@ -21,7 +22,7 @@
 #define LED_BLUE_3   0x08
 #define LED_BLUE_7   0x80
 
-int fd_led, fd_switch, fd_clcd, fd_dot; // 장치 파일 디스크립터
+int fd_led, fd_switch, fd_clcd, fd_dot, fd_fnd; // 장치 파일 디스크립터
 
 unsigned char BASEBALL[8][8] = {
     {0x7c, 0x18, 0x18, 0x7e, 0x7c, 0x18, 0x60, 0x60},
@@ -39,6 +40,12 @@ unsigned char STRIKE[8] = { 0x18, 0x3c, 0x66, 0x70, 0x0e, 0x66, 0x3c, 0x18 };
 unsigned char OUT[8] = { 0x3c, 0x7e, 0xc3, 0xc3, 0xc3, 0xc3, 0x7e, 0x3c };
 unsigned char HOME_RUN[8] = { 0x66, 0x66, 0x66, 0x7e, 0x7e, 0x66, 0x66, 0x66 };
 unsigned char BALL[8] = { 0x3c, 0x44, 0x44, 0x3c, 0x44, 0x44, 0x3c, 0x3c };
+
+// FND 데이터 테이블
+unsigned char FND_DATA_TBL[] = {
+    0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xF8, 0x80, 0x90, 0x88,
+    0x83, 0xC6, 0xA1, 0x86, 0x8E, 0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x89
+};
 
 // CLCD 초기화
 void clcd_init() {
@@ -149,30 +156,57 @@ char read_switch() {
     }
 }
 
+// FND 표시
+void fnd_display(unsigned int num) {
+    unsigned char fnd_data[4];
+    fnd_data[0] = FND_DATA_TBL[(num / 1000) % 10];
+    fnd_data[1] = FND_DATA_TBL[(num / 100) % 10];
+    fnd_data[2] = FND_DATA_TBL[(num / 10) % 10];
+    fnd_data[3] = FND_DATA_TBL[num % 10];
+    write(fd_fnd, fnd_data, sizeof(fnd_data));
+}
+
+// 홈런 시 순차적으로 숫자 출력
+void fnd_home_run_display() {
+    for (int i = 1; i <= 9; i++) {
+        fnd_display(i * 1111);
+        usleep(300000); // 0.3초 지연
+    }
+    fnd_display(0); // "0000" 표시
+}
+
 // 플레이어가 숫자를 입력하는 함수
 void get_player_input(char* buffer, int length, int round) {
     int idx = 0;
+    unsigned int num = 0;
     while (idx < length) {
         char input = read_switch();
         if (input == 'E') {
             if (round == 0 && (idx < 2 || idx > 3)) {  // 1라운드에서 잘못된 길이
                 clcd_write("Invalid length. Retry\n");
                 idx = 0;
+                num = 0;
                 memset(buffer, 0, length);
+                fnd_display(num);
                 continue;
             }
             else if (round == 1 && (idx < 3 || idx > 4)) {  // 2라운드에서 잘못된 길이
                 clcd_write("Invalid length. Retry\n");
                 idx = 0;
+                num = 0;
                 memset(buffer, 0, length);
+                fnd_display(num);
                 continue;
             }
             else if (is_valid_number(buffer, idx)) {
+                fnd_display(0);  // Enter를 누르면 FND를 지움
                 break;
             }
         }
         else if (input >= '0' && input <= '9') {
             buffer[idx++] = input;
+            num = num * 10 + (input - '0');
+            fnd_display(num);  // FND에 현재 숫자 표시
         }
         usleep(100000); // 0.1초 지연
     }
@@ -193,6 +227,14 @@ int main() {
     if (fd_switch < 0) {
         perror("Tact Switch 장치 열기 실패");
         close(fd_led);
+        return -1;
+    }
+
+    fd_fnd = open(DEV_FND, O_RDWR);
+    if (fd_fnd < 0) {
+        perror("FND 장치 열기 실패");
+        close(fd_led);
+        close(fd_switch);
         return -1;
     }
 
@@ -242,6 +284,7 @@ int main() {
                 snprintf(clcd_buffer, sizeof(clcd_buffer), "HR! Player %d right!\n", turn);
                 clcd_write(clcd_buffer);
                 display_status('H');
+                fnd_home_run_display();  // 홈런 시 FND에 숫자 순차적으로 표시
                 if (turn == 1) home_run1 = 1;
                 else home_run2 = 1;
             }
@@ -277,9 +320,12 @@ int main() {
     else if (score1 < score2) clcd_write("P2 Wins!\n");
     else clcd_write("It's a tie!\n");
 
+    fnd_display(0);  // 모든 게임이 끝나면 FND에 "0000" 표시
+
     close(fd_led);
     close(fd_switch);
     close(fd_clcd);
     close(fd_dot);
+    close(fd_fnd);
     return 0;
 }
