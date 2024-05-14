@@ -4,11 +4,14 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <stdlib.h>
 
 #define DEV_LED "/dev/led"
 #define DEV_SWITCH "/dev/tactsw"
+#define DEV_CLCD "/dev/clcd"
+#define DEV_DOT "/dev/dot" 
 
-// LED ì •ì˜
+// LED Á¤ÀÇ
 #define LED_RED_0    0x01
 #define LED_RED_4    0x10
 #define LED_YELLOW_1 0x02
@@ -18,9 +21,80 @@
 #define LED_BLUE_3   0x08
 #define LED_BLUE_7   0x80
 
-int fd_led, fd_switch; // íŒŒì¼ ë””ìŠ¤í¬ë¦½í„°
+int fd_led, fd_switch, fd_clcd, fd_dot; // ÀåÄ¡ ÆÄÀÏ µğ½ºÅ©¸³ÅÍ
 
-// ìˆ«ì ìœ íš¨ì„± ê²€ì‚¬ í•¨ìˆ˜
+unsigned char BASEBALL[8][8] = {
+    {0x7c, 0x18, 0x18, 0x7e, 0x7c, 0x18, 0x60, 0x60},
+    {0x62, 0x3c, 0x3c, 0x7e, 0x62, 0x3c, 0x60, 0x60},
+    {0x62, 0x66, 0x66, 0x60, 0x62, 0x66, 0x60, 0x60},
+    {0x7c, 0xc3, 0x70, 0x7e, 0x7c, 0xc3, 0x60, 0x60},
+    {0x62, 0xff, 0x0e, 0x7e, 0x62, 0xff, 0x60, 0x60},
+    {0x62, 0xff, 0x66, 0x60, 0x62, 0xff, 0x7f, 0x60},
+    {0x62, 0xc3, 0x3c, 0x7e, 0x62, 0xc3, 0x7f, 0x60},
+    {0x7c, 0xc3, 0x18, 0x7e, 0x7c, 0xc3, 0x7f, 0x60}
+};
+
+unsigned char BASEBALL_ICON[8] = { 0x3c, 0x42, 0xa5, 0xa5, 0xa5, 0xa5, 0x42, 0x3c };
+unsigned char STRIKE[8] = { 0x18, 0x3c, 0x66, 0x70, 0x0e, 0x66, 0x3c, 0x18 };
+unsigned char OUT[8] = { 0x3c, 0x7e, 0xc3, 0xc3, 0xc3, 0xc3, 0x7e, 0x3c };
+unsigned char HOME_RUN[8] = { 0x66, 0x66, 0x66, 0x7e, 0x7e, 0x66, 0x66, 0x66 };
+unsigned char BALL[8] = { 0x3c, 0x44, 0x44, 0x3c, 0x44, 0x44, 0x3c, 0x3c };
+
+// CLCD ÃÊ±âÈ­
+void clcd_init() {
+    fd_clcd = open(DEV_CLCD, O_RDWR);
+    if (fd_clcd < 0) {
+        perror("CLCD ÀåÄ¡ ¿­±â ½ÇÆĞ");
+        exit(1);
+    }
+    const char clear_screen[] = "\f"; // È­¸é Áö¿ì±â ¸í·É
+    write(fd_clcd, clear_screen, sizeof(clear_screen));
+}
+
+// CLCD ¾²±â
+void clcd_write(const char* str) {
+    write(fd_clcd, str, strlen(str));
+}
+
+// Dot Matrix ÃÊ±âÈ­
+void dot_matrix_init() {
+    fd_dot = open(DEV_DOT, O_RDWR);
+    if (fd_dot < 0) {
+        perror("Dot Matrix ÀåÄ¡ ¿­±â ½ÇÆĞ");
+        exit(1);
+    }
+}
+
+// Dot Matrix ¾²±â
+void dot_matrix_write(unsigned char* pattern) {
+    write(fd_dot, pattern, sizeof(unsigned char) * 8);
+}
+
+// Dot Matrix¿¡ "BASEBALL" Ç¥½Ã
+void display_baseball() {
+    for (int i = 0; i < 8; i++) {
+        dot_matrix_write(BASEBALL[i]);
+        usleep(500000); // 0.5ÃÊ Áö¿¬
+    }
+}
+
+// ¾ß±¸°ø ¾ÆÀÌÄÜ Ç¥½Ã
+void display_baseball_icon() {
+    dot_matrix_write(BASEBALL_ICON);
+}
+
+// Dot Matrix¿¡ »óÅÂ Ç¥½Ã
+void display_status(char status) {
+    switch (status) {
+    case 'S': dot_matrix_write(STRIKE); break;
+    case 'O': dot_matrix_write(OUT); break;
+    case 'H': dot_matrix_write(HOME_RUN); break;
+    case 'B': dot_matrix_write(BALL); break;
+    }
+    usleep(1500000); // 1.5ÃÊ Áö¿¬
+}
+
+// ÀÔ·ÂµÈ ¼ıÀÚ°¡ À¯È¿ÇÑÁö È®ÀÎ
 int is_valid_number(const char number[], int length) {
     if (strlen(number) != length) return 0;
     for (int i = 0; i < length; i++) {
@@ -31,19 +105,21 @@ int is_valid_number(const char number[], int length) {
     return 1;
 }
 
-// ìŠ¤íŠ¸ë¼ì´í¬ì™€ ë³¼ ê³„ì‚° í•¨ìˆ˜
+// ½ºÆ®¶óÀÌÅ©¿Í º¼ °è»ê
 void check_guess(const char guess[], const char secret_number[], int length, int* strikes, int* balls) {
     *strikes = 0;
     *balls = 0;
     for (int i = 0; i < length; i++) {
-        if (guess[i] == secret_number[i]) (*strikes)++;
         for (int j = 0; j < length; j++) {
-            if (guess[i] == secret_number[j] && i != j) (*balls)++;
+            if (guess[i] == secret_number[j]) {
+                if (i == j) (*strikes)++;
+                else if (i != j) (*balls)++;
+            }
         }
     }
 }
 
-// LED ì œì–´ í•¨ìˆ˜
+// LED Á¦¾î
 void led_control(int led_bits, int count) {
     for (int i = 0; i < count; i++) {
         ioctl(fd_led, led_bits, 1);
@@ -53,7 +129,7 @@ void led_control(int led_bits, int count) {
     }
 }
 
-// Tact ìŠ¤ìœ„ì¹˜ ì…ë ¥ ì½ê¸°
+// Tact Switch ÀÔ·Â ÀĞ±â
 char read_switch() {
     unsigned char state;
     read(fd_switch, &state, sizeof(state));
@@ -68,48 +144,77 @@ char read_switch() {
     case 0x80: return '2';
     case 0x100: return '3';
     case 0x200: return '0';
-    case 0x400: case 0x800: return 'E'; // ì—”í„°
+    case 0x400: case 0x800: return 'E'; // Enter Å°
     default: return '\0';
     }
 }
 
-// ë©”ì¸ í•¨ìˆ˜
+// ÇÃ·¹ÀÌ¾î°¡ ¼ıÀÚ¸¦ ÀÔ·ÂÇÏ´Â ÇÔ¼ö
+void get_player_input(char* buffer, int length, int round) {
+    int idx = 0;
+    while (idx < length) {
+        char input = read_switch();
+        if (input == 'E') {
+            if (round == 0 && (idx < 2 || idx > 3)) {  // 1¶ó¿îµå¿¡¼­ Àß¸øµÈ ±æÀÌ
+                clcd_write("Invalid length. Retry\n");
+                idx = 0;
+                memset(buffer, 0, length);
+                continue;
+            }
+            else if (round == 1 && (idx < 3 || idx > 4)) {  // 2¶ó¿îµå¿¡¼­ Àß¸øµÈ ±æÀÌ
+                clcd_write("Invalid length. Retry\n");
+                idx = 0;
+                memset(buffer, 0, length);
+                continue;
+            }
+            else if (is_valid_number(buffer, idx)) {
+                break;
+            }
+        }
+        else if (input >= '0' && input <= '9') {
+            buffer[idx++] = input;
+        }
+        usleep(100000); // 0.1ÃÊ Áö¿¬
+    }
+}
+
 int main() {
     char secret_number1[5], secret_number2[5], guess[10] = { 0 };
     int strikes, balls, turn = 1, score1 = 1000, score2 = 1000, rounds = 2, digits[2] = { 3, 4 };
 
     fd_led = open(DEV_LED, O_RDWR);
-    fd_switch = open(DEV_SWITCH, O_RDONLY);
-
-    if (fd_led < 0 || fd_switch < 0) {
-        perror("ì¥ì¹˜ íŒŒì¼ ì—´ê¸° ì‹¤íŒ¨");
+    if (fd_led < 0) {
+        perror("LED ÀåÄ¡ ¿­±â ½ÇÆĞ");
         return -1;
     }
 
+    fd_switch = open(DEV_SWITCH, O_RDONLY);
+    if (fd_switch < 0) {
+        perror("Tact Switch ÀåÄ¡ ¿­±â ½ÇÆĞ");
+        close(fd_led);
+        return -1;
+    }
+
+    clcd_init();
+    dot_matrix_init();
+
+    display_baseball(); // °ÔÀÓ ½ÃÀÛ Àü¿¡ "BASEBALL" Ç¥½Ã
+
     for (int round = 0; round < rounds; round++) {
-        int current_digits = digits[round];
-        printf("\në¼ìš´ë“œ %d: %d ìë¦¬ ìˆ«ìë¥¼ ë§ì¶°ë³´ì„¸ìš”.\n", round + 1, current_digits);
+        char clcd_buffer[32];
+        snprintf(clcd_buffer, sizeof(clcd_buffer), "Round %d: Guess %d digits\n", round + 1, digits[round]);
+        clcd_write(clcd_buffer);
 
         for (int player = 1; player <= 2; player++) {
-            memset(secret_number1, 0, sizeof(secret_number1));
-            memset(secret_number2, 0, sizeof(secret_number2));
-            printf("í”Œë ˆì´ì–´ %d, ìˆ«ìë¥¼ ì„¤ì •í•˜ì„¸ìš” (%dìë¦¬, ì¤‘ë³µ ì—†ìŒ): ", player, current_digits);
-            for (int i = 0; i < current_digits;) {
-                char input = read_switch();
-                if (input == 'E') {
-                    if (i == current_digits && is_valid_number(player == 1 ? secret_number1 : secret_number2, current_digits)) {
-                        break;
-                    }
-                }
-                else if (input != '\0') {
-                    if (player == 1) {
-                        secret_number1[i] = input;
-                    }
-                    else {
-                        secret_number2[i] = input;
-                    }
-                    i++;
-                }
+            snprintf(clcd_buffer, sizeof(clcd_buffer), "Player %d: Set number\n", player);
+            clcd_write(clcd_buffer);
+            memset(guess, 0, sizeof(guess));
+            get_player_input(guess, digits[round], round);
+            if (player == 1) {
+                strncpy(secret_number1, guess, digits[round]);
+            }
+            else {
+                strncpy(secret_number2, guess, digits[round]);
             }
         }
 
@@ -123,69 +228,58 @@ int main() {
                 continue;
             }
 
+            snprintf(clcd_buffer, sizeof(clcd_buffer), "Player %d: Guess number\n", turn);
+            clcd_write(clcd_buffer);
             memset(guess, 0, sizeof(guess));
-            printf("í”Œë ˆì´ì–´ %d, ìƒëŒ€ë°©ì˜ ìˆ«ìë¥¼ ì¶”ì¸¡í•´ë³´ì„¸ìš”: ", turn);
-            for (int i = 0; i < current_digits;) {
-                char input = read_switch();
-                if (input == 'E') {
-                    if (i == current_digits && is_valid_number(guess, current_digits)) {
-                        break;
-                    }
-                }
-                else if (input != '\0') {
-                    guess[i] = input;
-                    i++;
-                }
-            }
+            get_player_input(guess, digits[round], round);
 
             time(&end_time);
             double seconds = difftime(end_time, start_time);
 
-            check_guess(guess, turn == 1 ? secret_number2 : secret_number1, current_digits, &strikes, &balls);
+            check_guess(guess, turn == 1 ? secret_number2 : secret_number1, digits[round], &strikes, &balls);
 
-            if (strikes == current_digits) {
-                led_control(LED_BLUE_3 | LED_BLUE_7, 5);  // í™ˆëŸ°: íŒŒë€ìƒ‰ LED
-                printf("í™ˆëŸ°! í”Œë ˆì´ì–´ %dê°€ ì •ë‹µì„ ë§ì·„ìŠµë‹ˆë‹¤!\n", turn);
+            if (strikes == digits[round]) {
+                snprintf(clcd_buffer, sizeof(clcd_buffer), "HR! Player %d right!\n", turn);
+                clcd_write(clcd_buffer);
+                display_status('H');
                 if (turn == 1) home_run1 = 1;
                 else home_run2 = 1;
             }
             else if (strikes == 0 && balls == 0) {
-                led_control(LED_RED_0 | LED_RED_4, 5);  // ì•„ì›ƒ: ë¹¨ê°„ìƒ‰ LED
-                printf("ì•„ì›ƒ! ìŠ¤íŠ¸ë¼ì´í¬ì™€ ë³¼ì´ í•˜ë‚˜ë„ ì—†ìŠµë‹ˆë‹¤.\n");
-            }
-            else if (strikes > balls) {
-                led_control(LED_YELLOW_1 | LED_YELLOW_5, 5);  // ìŠ¤íŠ¸ë¼ì´í¬ê°€ ë§ì„ ë•Œ: ë…¸ë€ìƒ‰ LED
+                clcd_write("Out! No S/B\n");
+                display_status('O');
             }
             else {
-                led_control(LED_ORANGE_2 | LED_ORANGE_6, 5);  // ë³¼ì´ ë§ì„ ë•Œ: ì£¼í™©ìƒ‰ LED
+                snprintf(clcd_buffer, sizeof(clcd_buffer), "%d Strikes, %d Balls\n", strikes, balls);
+                clcd_write(clcd_buffer);
+                if (strikes >= balls) {
+                    display_status('S');
+                }
+                else {
+                    display_status('B');
+                }
             }
 
-            if (turn == 1) {
-                score1 -= (10 + (int)seconds);
-            }
-            else {
-                score2 -= (10 + (int)seconds);
-            }
+            if (turn == 1) score1 -= (10 + (int)seconds);
+            else score2 -= (10 + (int)seconds);
 
             turn = turn == 1 ? 2 : 1;
-            time(&start_time);  // ë‹¤ìŒ ì¶”ì¸¡ì„ ìœ„í•´ ì‹œê°„ ì´ˆê¸°í™”
+            time(&start_time);  // ´ÙÀ½ ÃßÃøÀ» À§ÇÑ ½Ã°£ ¸®¼Â
         }
 
-        printf("ë¼ìš´ë“œ %d ì¢…ë£Œ. í”Œë ˆì´ì–´ 1 ì ìˆ˜: %d, í”Œë ˆì´ì–´ 2 ì ìˆ˜: %d\n", round + 1, score1, score2);
+        snprintf(clcd_buffer, sizeof(clcd_buffer), "End R%d. P1: %d, P2: %d\n", round + 1, score1, score2);
+        clcd_write(clcd_buffer);
     }
 
-    printf("\nìµœì¢… ì ìˆ˜ - í”Œë ˆì´ì–´ 1: %d, í”Œë ˆì´ì–´ 2: %d\n", score1, score2);
-    if (score1 > score2) {
-        printf("í”Œë ˆì´ì–´ 1ì´ ìŠ¹ë¦¬í–ˆìŠµë‹ˆë‹¤!\n");
-    }
-    else if (score1 < score2) {
-        printf("í”Œë ˆì´ì–´ 2ê°€ ìŠ¹ë¦¬í–ˆìŠµë‹ˆë‹¤!\n");
-    }
-    else {
-        printf("ë¬´ìŠ¹ë¶€ì…ë‹ˆë‹¤!\n");
-    }
+    snprintf(clcd_buffer, sizeof(clcd_buffer), "Final P1: %d, P2: %d\n", score1, score2);
+    clcd_write(clcd_buffer);
+    if (score1 > score2) clcd_write("P1 Wins!\n");
+    else if (score1 < score2) clcd_write("P2 Wins!\n");
+    else clcd_write("It's a tie!\n");
 
-    close(fd_led);  // LED ë””ë°”ì´ìŠ¤ íŒŒì¼ ë‹«ê¸°
-    close(fd_switch); // ìŠ¤ìœ„ì¹˜ ë””ë°”ì´ìŠ¤ íŒŒì¼ ë‹«ê¸°
+    close(fd_led);
+    close(fd_switch);
+    close(fd_clcd);
+    close(fd_dot);
     return 0;
 }
