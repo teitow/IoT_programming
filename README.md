@@ -82,11 +82,6 @@
 - **LED 사용**: 특정 상황(예: 홈런)에서 LED를 제어합니다.
 - **게임 로직**: 두 플레이어가 번갈아 가며 숫자를 추측하고, 스트라이크와 볼을 계산하여 점수를 기록하고, 최종 승자를 결정합니다.
 
-## 예제 코드
-
-```c
-// 위에서 설명한 기능들을 포함한 코드
-
 
 ## 게임 플로우차트
 <img src="https://github.com/teitow/IoT_programming/blob/main/image/%EC%88%AB%EC%9E%90%EC%95%BC%EA%B5%AC%EA%B2%8C%EC%9E%84%ED%94%8C%EB%A1%9C%EC%9A%B0%EC%B0%A8%ED%8A%B8.drawio.png" width="50%" height="50%">
