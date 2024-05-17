@@ -60,17 +60,17 @@
 ### Tact Switch
 - **입력 읽기**: Tact Switch의 상태를 읽어 입력을 처리합니다.
   - **숫자 입력**: 0부터 9까지의 숫자를 입력할 수 있습니다.
-  - **엔터 입력**: Tact Switch 10과 12는 'E' (엔터)로 처리됩니다.
-  - **숫자 0 입력**: Tact Switch 11은 '0'으로 처리됩니다.
+  - **엔터 입력**: Tact Switch 10은 게임 실행을 위한 엔터 처럼 처리됩니다. Tact Switch를 이용해서 숫자를 입력하고 10을 누르면 해당 숫자가 input이 됩니다.
+  - **종료 입력**: Tact Switch 12를 입력하면 게임이 종료가 됩니다.
 
 ### LED
 - **제어**: 게임 상황에 따라 LED를 켜고 끕니다.
   - **홈런 시 LED 깜빡임**: 홈런을 달성했을 때 LED를 깜빡입니다. 
   - LED 제어 예시:
-    - `LED_RED_0`: 홈런 시 빨간색 LED가 깜빡입니다.
-    - `LED_GREEN_1`: 홈런 시 초록색 LED가 깜빡입니다.
-    - `LED_YELLOW_2`: 홈런 시 노란색 LED가 깜빡입니다.
-    - `LED_BLUE_3`: 홈런 시 파란색 LED가 깜빡입니다.
+    - `LED_RED_0`, 'LED_RED_4': 홈런 시 빨간색 LED가 깜빡입니다.
+    - `LED_GREEN_1`, `LED_GREEN_5`: 홈런 시 초록색 LED가 깜빡입니다.
+    - `LED_YELLOW_2`, `LED_YELLOW_6`: 홈런 시 노란색 LED가 깜빡입니다.
+    - `LED_BLUE_3`, `LED_BLUE_7`: 홈런 시 파란색 LED가 깜빡입니다.
 
 ## 주요 기능 설명
 
