@@ -71,10 +71,10 @@
 - **제어**: 게임 상황에 따라 LED를 켜고 끕니다.
   - **게임이 끝난 후 LED 깜빡임**: 게임이 끝나고 스코어가 뜨면 잠시동안 모든 LED를 깜빡입니다. 
   - LED 제어 예시:
-    - `LED_RED_0`, 'LED_RED_4': 홈런 시 빨간색 LED가 깜빡입니다.
-    - `LED_GREEN_1`, `LED_GREEN_5`: 홈런 시 초록색 LED가 깜빡입니다.
-    - `LED_YELLOW_2`, `LED_YELLOW_6`: 홈런 시 노란색 LED가 깜빡입니다.
-    - `LED_BLUE_3`, `LED_BLUE_7`: 홈런 시 파란색 LED가 깜빡입니다.
+    - `LED_RED_0`, 'LED_RED_4': 아웃일 경우 빨간색 LED가 깜빡입니다.
+    - `LED_GREEN_1`, `LED_GREEN_5`: 스트라이크일 경우 초록색 LED가 깜빡입니다.
+    - `LED_YELLOW_2`, `LED_YELLOW_6`: 볼일 경우 노란색 LED가 깜빡입니다.
+    - `LED_BLUE_3`, `LED_BLUE_7`: 홈런일 경우 파란색 LED가 깜빡입니다.
 
 ## 주요 기능 설명
 
