@@ -7,7 +7,6 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <time.h>
-#include <errno.h>
 
 // 디바이스 경로 정의
 #define fnd "/dev/fnd"
@@ -296,49 +295,10 @@ void PrintFnd(int* nums, int count) {
     for (int i = 0; i < count; i++) {
         fnd_data[i] = fnd_codes[nums[i]];
     }
-
-    int fndFd = open(fnd, O_RDWR);
-    if (fndFd < 0) {
-        perror("FND 디바이스 열기 실패");
-        return;
-    }
-
-    ssize_t written = write(fndFd, fnd_data, sizeof(fnd_data));
-    if (written < 0) {
-        perror("FND 데이터 쓰기 실패");
-        printf("errno: %d\n", errno);
-    }
-    else {
-        printf("FND 데이터 쓰기 성공, %zd 바이트\n", written);
-    }
-
-    close(fndFd);
 }
 
-void ResetFnd() {
-    // FND 데이터를 초기화합니다.
-    fnd_data[0] = 0xFF;
-    fnd_data[1] = 0xFF;
-    fnd_data[2] = 0xFF;
-    fnd_data[3] = 0xFF;
 
-    int fndFd = open(fnd, O_RDWR);
-    if (fndFd < 0) {
-        perror("FND 디바이스 열기 실패");
-        return;
-    }
 
-    ssize_t written = write(fndFd, fnd_data, sizeof(fnd_data));
-    if (written < 0) {
-        perror("FND 데이터 쓰기 실패");
-        printf("errno: %d\n", errno);
-    }
-    else {
-        printf("FND 데이터 쓰기 성공, %zd 바이트\n", written);
-    }
-
-    close(fndFd);
-}
 
 // 점수 표시 함수
 void display_score(int player1_score, int player2_score) {
@@ -353,11 +313,23 @@ void input_number(char* number, int digits) {
     int tactsw_value;
     int idx = 0;
 
+    int nums[4] = { 0 }; // 정수 배열 초기화
+
     while (idx < digits) {
         tactsw_value = tactsw_get_with_timer(100);
         if (tactsw_value >= 1 && tactsw_value <= 9) {
-            number[idx++] = '0' + tactsw_value;
-            PrintFnd((int*)number, idx); // 입력 중인 숫자를 FND에 표시
+            number[idx] = '0' + tactsw_value;
+            nums[idx] = tactsw_value; // 정수 배열에 값 저장
+            idx++;
+            PrintFnd(nums, idx); // 정수 배열과 현재 인덱스 전달
+            int fndFd = open(fnd, O_RDWR);
+            if (fndFd < 0) {
+                perror("FND 디바이스 열기 실패");
+                return;
+            }
+            write(fndFd, &fnd_data, sizeof(fnd_data));
+            close(fndFd);
+            printf("input_number: TACT switch value %d, Current number: %s\n", tactsw_value, number);
         }
     }
     number[digits] = '\0';
@@ -376,9 +348,9 @@ void blink_fnd() {
     }
 
     for (int i = 0; i < 5; i++) {
-        write(fndFd, fnd_blink_data, sizeof(fnd_blink_data));
+        write(fndFd, &fnd_blink_data, sizeof(fnd_blink_data));
         usleep(200000); // 0.2초 대기
-        write(fndFd, fnd_clear_data, sizeof(fnd_clear_data));
+        write(fndFd, &fnd_clear_data, sizeof(fnd_clear_data));
         usleep(200000); // 0.2초 대기
     }
     close(fndFd);
@@ -519,10 +491,17 @@ void start_game() {
     print_winner(score1, score2);
 
     // 최종 점수 FND 출력
-    char final_scores[5];
-    sprintf(final_scores, "%04d", score1);
-    PrintFnd((int*)final_scores, 4);
+    int final_scores[4] = { score1 / 1000, (score1 / 100) % 10, (score1 / 10) % 10, score1 % 10 };
+    PrintFnd(final_scores, 4);
+    int fnd_fd = open(fnd, O_RDWR);
+    if (fnd_fd < 0) {
+        perror("FND 디바이스 열기 실패");
+        return;
+    }
+    write(fnd_fd, fnd_data, sizeof(fnd_data));
+    close(fnd_fd);
 }
+
 
 // 게임 소개 함수
 int intro() {
@@ -548,7 +527,7 @@ int main() {
     }
     else {
         print_clcd("Game Not Started");
-        usleep(2000000);
+        usleep(2000000); // 2초 대기
     }
     return 0;
 }
