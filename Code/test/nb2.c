@@ -7,14 +7,15 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 // 디바이스 경로 정의
-#define fnd "/dev/fnd"
 #define dot "/dev/dot"
 #define tact "/dev/tactsw"
 #define led "/dev/led"
 #define dip "/dev/dipsw"
 #define clcd "/dev/clcd"
+#define FND_DEV "/dev/fnd"
 
 // 함수 선언부
 void print_clcd(const char* message);
@@ -27,6 +28,7 @@ void game_rule(int round);
 void start_game();
 void input_number(char* number, int digits);
 void check_guess(const char* guess, const char* secret, int length, int* strikes, int* balls, int* outs);
+void display_score(int player1_score, int player2_score);
 void print_game_start();
 void print_round_start(int round);
 void print_result(int strikes, int balls, int outs);
@@ -36,8 +38,8 @@ void print_winner(int player1_score, int player2_score);
 void print_homerun();
 int intro();
 int is_valid_number(const char* number, int length);
-void blink_fnd();
 void blink_led();
+void display_fnd(int value);
 
 // 전역 변수
 int dipsw;
@@ -45,8 +47,7 @@ int leds;
 int dot_mtx;
 int tactsw;
 int clcds;
-int fnds;
-unsigned char fnd_data[4];
+int fnd_fd;
 
 // Dot Matrix 패턴
 unsigned char patterns[4][8] = {
@@ -56,16 +57,54 @@ unsigned char patterns[4][8] = {
     {0x1E, 0x22, 0x22, 0x1E, 0x22, 0x22, 0x22, 0x1E}  // BALL
 };
 
+// FND 클래스 정의
+class FND
+{
+private:
+    int fnd_fd;
+
+    // n이 0부터 9까지의 값이라면 해당하는 FND비트를, 해당하지 않으면 아무것도 표시하지 않는 비트를 반환
+    unsigned char asc_to_fnd(int n)
+    {
+        unsigned char FND_BITS[11] = { 0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xD8, 0x80, 0x98, 0xFF };
+        return n >= 0 && n < 10 ? FND_BITS[n] : FND_BITS[10];
+    }
+
+    void openFND() { fnd_fd = open(FND_DEV, O_WRONLY); }
+    void closeFND() { close(fnd_fd); }
+
+public:
+    FND() { fnd_fd = -1; }
+    void draw(int value)
+    {
+        openFND();
+        unsigned char Hex_Code[4];
+        memset(Hex_Code, 0x00, sizeof(Hex_Code));
+
+        int TargetNum = value;
+        int i;
+        for (i = 1; i < 4 + 1; i++)
+        {
+            int Num = TargetNum / pow(10, 4 - i);
+            TargetNum -= Num * pow(10, 4 - i);
+            Hex_Code[i - 1] = asc_to_fnd(Num);
+        }
+        write(fnd_fd, Hex_Code, 4);
+        closeFND();
+    }
+};
+
+FND fnd;
+
 // Character LCD 함수
 void print_clcd(const char* message) {
     clcds = open(clcd, O_RDWR);
     if (clcds < 0) {
-        printf("Failed to open Character LCD.\n");
+        printf("Character LCD 열기 실패.\n");
         exit(0);
     }
     write(clcds, message, strlen(message));
     close(clcds);
-    usleep(100000);  // 0.1초 대기
 }
 
 void print_game_start() {
@@ -123,13 +162,12 @@ void print_winner(int player1_score, int player2_score) {
 void writeToDotDevice(unsigned char* data, int time) {
     dot_mtx = open(dot, O_RDWR);
     if (dot_mtx < 0) {
-        printf("Failed to open Dot device.\n");
+        printf("Dot 디바이스 열기 실패\n");
         exit(0);
     }
     write(dot_mtx, data, 8);
     usleep(time);
     close(dot_mtx);
-    usleep(100000);  // 0.1초 대기
 }
 
 // TACT Switch 함수
@@ -139,7 +177,7 @@ int tactsw_get_with_timer(int t_second) {
 
     tactswFd = open(tact, O_RDONLY);
     if (tactswFd < 0) {
-        printf("Failed to open TACT switch device.\n");
+        perror("TACT 스위치 디바이스 열기 실패");
         return -1;
     }
 
@@ -148,6 +186,7 @@ int tactsw_get_with_timer(int t_second) {
         read(tactswFd, &b, sizeof(b));
         if (b) {
             selected_tact = b;
+            fnd.draw(b); // FND에 현재 TACTSW 값 출력
             close(tactswFd);
             return selected_tact;
         }
@@ -165,7 +204,7 @@ int dipsw_get_with_timer(int t_second) {
 
     dipswFd = open(dip, O_RDONLY);
     if (dipswFd < 0) {
-        printf("Failed to open DIP switch device.\n");
+        perror("DIP 스위치 디바이스 열기 실패");
         return -1;
     }
 
@@ -193,12 +232,11 @@ void led_on(int strikes, int balls, int outs, int homerun) {
     if (homerun > 0) led_data |= 0x88; // Blue LEDs
     leds = open(led, O_RDWR);
     if (leds < 0) {
-        printf("Failed to open LED device.\n");
+        printf("LED 열기 실패.\n");
         exit(0);
     }
     write(leds, &led_data, sizeof(unsigned char));
     close(leds);
-    usleep(100000);  // 0.1초 대기
 }
 
 // 디바이스 초기화 함수
@@ -208,9 +246,9 @@ void init_devices() {
     dot_mtx = open(dot, O_RDWR);
     tactsw = open(tact, O_RDWR);
     clcds = open(clcd, O_RDWR);
-    fnds = open(fnd, O_RDWR);
-    if (dipsw < 0 || leds < 0 || dot_mtx < 0 || tactsw < 0 || clcds < 0 || fnds < 0) {
-        printf("Failed to open devices.\n");
+    fnd_fd = open(FND_DEV, O_RDWR);
+    if (dipsw < 0 || leds < 0 || dot_mtx < 0 || tactsw < 0 || clcds < 0 || fnd_fd < 0) {
+        printf("디바이스 열기 실패\n");
         exit(0);
     }
     close(dipsw);
@@ -218,7 +256,7 @@ void init_devices() {
     close(dot_mtx);
     close(tactsw);
     close(clcds);
-    close(fnds);
+    close(fnd_fd);
 }
 
 // 게임 규칙 출력 함수
@@ -283,38 +321,12 @@ void check_guess(const char* guess, const char* secret, int length, int* strikes
     }
 }
 
-// FND 출력 함수
-void PrintFnd(int* nums, int count) {
-    unsigned char fnd_codes[10] = { 0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xD8, 0x80, 0x98 };
-    unsigned char read_data[4];
-
-    // FND 데이터를 초기화합니다.
-    fnd_data[0] = 0xFF;
-    fnd_data[1] = 0xFF;
-    fnd_data[2] = 0xFF;
-    fnd_data[3] = 0xFF;
-
-    // 입력된 숫자를 FND에 표시합니다.
-    for (int i = 0; i < count; i++) {
-        fnd_data[i] = fnd_codes[nums[i]];
-        printf("FND position %d, write value %d\n", i, nums[i]); // 디버그 정보 출력
-    }
-
-    int fndFd = open(fnd, O_RDWR);
-    if (fndFd < 0) {
-        printf("Failed to open FND device.\n");
-        return;
-    }
-    write(fndFd, &fnd_data, sizeof(fnd_data));
-    usleep(100000);  // 0.1초 대기
-
-    // FND의 현재 값을 읽어와서 디버그 정보 출력
-    read(fndFd, &read_data, sizeof(read_data));
-    for (int i = 0; i < 4; i++) {
-        printf("FND position %d, read value %02X\n", i, read_data[i]); // 현재 FND 값 출력
-    }
-
-    close(fndFd);
+// 점수 표시 함수
+void display_score(int player1_score, int player2_score) {
+    char score[32];
+    sprintf(score, "P1: %d, P2: %d", player1_score, player2_score);
+    print_clcd(score);
+    usleep(5000000); // 5초 대기
 }
 
 // 숫자 입력 함수
@@ -322,50 +334,15 @@ void input_number(char* number, int digits) {
     int tactsw_value;
     int idx = 0;
 
-    int nums[4] = { 0 }; // 정수 배열 초기화
-    int fndFd = open(fnd, O_RDWR);
-    if (fndFd < 0) {
-        printf("Failed to open FND device.\n");
-        return;
-    }
-
     while (idx < digits) {
         tactsw_value = tactsw_get_with_timer(100);
         if (tactsw_value >= 1 && tactsw_value <= 9) {
             number[idx] = '0' + tactsw_value;
-            nums[idx] = tactsw_value; // 정수 배열에 값 저장
             idx++;
-            PrintFnd(nums, idx); // 정수 배열과 현재 인덱스 전달
             printf("input_number: TACT switch value %d, Current number: %s\n", tactsw_value, number);
         }
-        // 현재 입력된 값을 FND에 표시하여 유지
-        write(fndFd, &fnd_data, sizeof(fnd_data));
-        usleep(100000);  // 0.1초 대기
     }
     number[digits] = '\0';
-
-    close(fndFd);
-}
-
-// FND Blink 함수
-void blink_fnd() {
-    unsigned char fnd_codes[10] = { 0xC0, 0xF9, 0xA4, 0xB0, 0x99, 0x92, 0x82, 0xD8, 0x80, 0x98 };
-    unsigned char fnd_blink_data[4] = { fnd_codes[8], fnd_codes[8], fnd_codes[8], fnd_codes[8] };
-    unsigned char fnd_clear_data[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
-
-    int fndFd = open(fnd, O_RDWR);
-    if (fndFd < 0) {
-        printf("Failed to open FND device.\n");
-        return;
-    }
-
-    for (int i = 0; i < 5; i++) {
-        write(fndFd, &fnd_blink_data, sizeof(fnd_blink_data));
-        usleep(100000); // 0.2초 대기
-        write(fndFd, &fnd_clear_data, sizeof(fnd_clear_data));
-        usleep(100000); // 0.2초 대기
-    }
-    close(fndFd);
 }
 
 // LED Blink 함수
@@ -375,15 +352,15 @@ void blink_led() {
 
     int ledFd = open(led, O_RDWR);
     if (ledFd < 0) {
-        printf("Failed to open LED device.\n");
+        perror("LED 디바이스 열기 실패");
         return;
     }
 
     for (int i = 0; i < 5; i++) {
         write(ledFd, &led_on_data, sizeof(unsigned char));
-        usleep(100000); // 0.2초 대기
+        usleep(200000); // 0.2초 대기
         write(ledFd, &led_off_data, sizeof(unsigned char));
-        usleep(100000); // 0.2초 대기
+        usleep(200000); // 0.2초 대기
     }
     close(ledFd);
 }
@@ -410,7 +387,7 @@ void start_game() {
                 input_number(player == 1 ? secret_number1 : secret_number2, current_digits);
                 if (!is_valid_number(player == 1 ? secret_number1 : secret_number2, current_digits)) {
                     print_clcd("Invalid Number!");
-                    usleep(1500000); // 2초 대기
+                    usleep(2000000); // 2초 대기
                 }
                 else {
                     break; // 유효한 입력
@@ -440,20 +417,12 @@ void start_game() {
                 input_number(guess, current_digits);
                 if (!is_valid_number(guess, current_digits)) {
                     print_clcd("Invalid Guess!");
-                    usleep(1500000); // 2초 대기
+                    usleep(2000000); // 2초 대기
                 }
                 else {
                     break; // 유효한 입력
                 }
             }
-
-            // FND에 입력된 숫자 표시
-            int guess_nums[4];
-            for (int i = 0; i < current_digits; i++) {
-                guess_nums[i] = guess[i] - '0';
-            }
-            PrintFnd(guess_nums, current_digits);
-            usleep(2000000); // 2초 동안 표시
 
             time_t end_time = time(NULL);
             int time_diff = difftime(end_time, start_time);
@@ -482,7 +451,6 @@ void start_game() {
             print_result(strikes, balls, outs);
             led_on(strikes, balls, outs, (strikes == current_digits));
 
-            // 이후 Dot Matrix에 패턴을 표시
             if (strikes == current_digits) {
                 print_homerun();
             }
@@ -501,23 +469,12 @@ void start_game() {
             // 턴 변경
             turn = turn == 1 ? 2 : 1;
         }
+
+        display_score(score1, score2);
     }
 
     // 최종 결과 출력
     print_final_score(score1, score2);
-
-    // 최종 점수 FND 출력
-    int final_score = (score1 > score2) ? score1 : score2;
-    int final_scores[4] = { final_score / 1000, (final_score / 100) % 10, (final_score / 10) % 10, final_score % 10 };
-    PrintFnd(final_scores, 4);
-    int fnd_fd = open(fnd, O_RDWR);
-    if (fnd_fd < 0) {
-        printf("Failed to open FND device.\n");
-        return;
-    }
-    write(fnd_fd, fnd_data, sizeof(fnd_data));
-    usleep(5000000); // 5초 동안 FND에 점수 표시
-    close(fnd_fd);
 
     // 승자 출력
     print_winner(score1, score2);
@@ -531,7 +488,6 @@ int intro() {
     dip_value = dipsw_get_with_timer(100);  // 10초로 증가
 
     if (dip_value != 0) {
-        blink_fnd();
         blink_led();
     }
     return dip_value;
