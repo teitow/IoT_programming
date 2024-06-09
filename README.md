@@ -91,6 +91,3 @@
 <img src="Document/발표자료/image/숫자야구게임플로우차트.drawio.png" alt="숫자야구게임 플로우차트" width="50%" height="50%">
 
 
-## 도트 사이트
-https://xantorohara.github.io/led-matrix-editor/#0000000000000000
-
