@@ -37,8 +37,8 @@ void print_homerun();
 int intro();
 int is_valid_number(const char* number, int length);
 void blink_fnd();
-void blink_led();
-void print_baseball_message();
+void blink_led(int type);
+void display_baseball_message();
 
 // 전역 변수
 int dipsw;
@@ -57,7 +57,7 @@ unsigned char patterns[4][8] = {
     {0x1E, 0x22, 0x22, 0x1E, 0x22, 0x22, 0x22, 0x1E}  // BALL
 };
 
-//Dot Matrix Baseball 프린트 패턴
+// Define the 8x8 patterns for each letter in "BASEBALL"
 unsigned char letters[8][8] = {
     {0x7C, 0x66, 0x66, 0x7C, 0x66, 0x66, 0x7C, 0x00}, // B
     {0x3C, 0x66, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x00}, // A
@@ -68,7 +68,6 @@ unsigned char letters[8][8] = {
     {0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0x00}, // L
     {0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0x00}  // L
 };
-
 
 // Character LCD 함수
 void print_clcd(const char* message) {
@@ -215,6 +214,52 @@ void led_on(int strikes, int balls, int outs, int homerun) {
     usleep(100000);  // 0.1초 대기
 }
 
+// LED Blink 함수
+void blink_led(int type) {
+    unsigned char led_on_data = 0x00;
+    unsigned char led_off_data = 0xFF;
+
+    // Define LED patterns based on the type
+    switch (type) {
+    case 1: // Outs
+        led_on_data = 0xEE; // 0b11101110
+        break;
+    case 2: // Strikes
+        led_on_data = 0xDD; // 0b11011101
+        break;
+    case 3: // Balls
+        led_on_data = 0xBB; // 0b10111011
+        break;
+    case 4: // Homerun
+        led_on_data = 0x77; // 0b01110111
+        break;
+    default:
+        led_on_data = 0x00;
+        break;
+    }
+
+    int ledFd = open(led, O_RDWR);
+    if (ledFd < 0) {
+        printf("Failed to open LED device.\n");
+        return;
+    }
+
+    for (int i = 0; i < 3; i++) {
+        write(ledFd, &led_on_data, sizeof(unsigned char));
+        usleep(100000); // 0.3초 대기
+        write(ledFd, &led_off_data, sizeof(unsigned char));
+        usleep(100000); // 0.3초 대기
+    }
+    close(ledFd);
+}
+
+// "BASEBALL" 메시지 표시 함수
+void display_baseball_message() {
+    for (int i = 0; i < 8; i++) {
+        writeToDotDevice(letters[i], 500000); // 문자별로 0.5초씩 표시
+    }
+}
+
 // 디바이스 초기화 함수
 void init_devices() {
     dipsw = open(dip, O_RDWR);
@@ -354,7 +399,7 @@ void input_number(char* number, int digits) {
         }
         // 현재 입력된 값을 FND에 표시하여 유지
         write(fndFd, &fnd_data, sizeof(fnd_data));
-        usleep(100000);  // 0.1초 대기
+        usleep(300000);  // 0.3초 대기
     }
     number[digits] = '\0';
 
@@ -382,33 +427,6 @@ void blink_fnd() {
     close(fndFd);
 }
 
-// LED Blink 함수
-void blink_led() {
-    unsigned char led_on_data = 0xFF;
-    unsigned char led_off_data = 0x00;
-
-    int ledFd = open(led, O_RDWR);
-    if (ledFd < 0) {
-        printf("Failed to open LED device.\n");
-        return;
-    }
-
-    for (int i = 0; i < 5; i++) {
-        write(ledFd, &led_on_data, sizeof(unsigned char));
-        usleep(100000); // 0.1초 대기
-        write(ledFd, &led_off_data, sizeof(unsigned char));
-        usleep(100000); // 0.1초 대기
-    }
-    close(ledFd);
-}
-
-// "BASEBALL" 메시지를 Dot Matrix에 문자별로 표시
-void print_baseball_message() {
-    for (int i = 0; i < 8; i++) {
-        writeToDotDevice(letters[i], 500000); // 각 문자별로 0.5초씩 표시
-    }
-}
-
 // 게임 시작 함수
 void start_game() {
     char secret_number1[5]; // 플레이어 1의 비밀 숫자 저장 (최대 4자리)
@@ -431,7 +449,7 @@ void start_game() {
                 input_number(player == 1 ? secret_number1 : secret_number2, current_digits);
                 if (!is_valid_number(player == 1 ? secret_number1 : secret_number2, current_digits)) {
                     print_clcd("Invalid Number!");
-                    usleep(1500000); // 2초 대기
+                    usleep(1500000); // 1.5초 대기
                 }
                 else {
                     break; // 유효한 입력
@@ -445,6 +463,7 @@ void start_game() {
             if (home_run1 == 1 && home_run2 == 1) {
                 break;
             }
+
             if (turn == 1 && home_run1 == 1) {
                 turn = 2; // 홈런을 친 플레이어는 건너뛰기
                 continue;
@@ -461,7 +480,7 @@ void start_game() {
                 input_number(guess, current_digits);
                 if (!is_valid_number(guess, current_digits)) {
                     print_clcd("Invalid Guess!");
-                    usleep(1500000); // 2초 대기
+                    usleep(1500000); // 1.5초 대기
                 }
                 else {
                     break; // 유효한 입력
@@ -501,26 +520,27 @@ void start_game() {
             }
 
             print_result(strikes, balls, outs);
+            led_on(strikes, balls, outs, (strikes == current_digits));
 
-            // 이후 Dot Matrix에 패턴을 표시하고 LED를 점등
+            // 이후 Dot Matrix에 패턴을 표시
             if (strikes == current_digits) {
-                writeToDotDevice(patterns[2], 2000000); // 홈런 패턴 표시
-                led_on(strikes, balls, outs, 1); // 홈런 LED 점등
+                print_homerun();
+                blink_led(4); // 홈런일 때 LED 깜빡임
             }
             else {
                 if (strikes > 0) {
                     writeToDotDevice(patterns[0], 2000000); // 스트라이크 패턴 표시
+                    blink_led(2); // 스트라이크일 때 LED 깜빡임
                 }
                 if (balls > 0) {
                     writeToDotDevice(patterns[3], 2000000); // 볼 패턴 표시
+                    blink_led(3); // 볼일 때 LED 깜빡임
                 }
                 if (outs == current_digits) {
                     writeToDotDevice(patterns[1], 2000000); // 아웃 패턴 표시
+                    blink_led(1); // 아웃일 때 LED 깜빡임
                 }
-                led_on(strikes, balls, outs, 0); // 관련 LED 점등
             }
-
-            usleep(2000000); // 2초 대기 후 Dot Matrix 지움
 
             // 턴 변경
             turn = turn == 1 ? 2 : 1;
@@ -547,7 +567,6 @@ void start_game() {
     print_winner(score1, score2);
 }
 
-
 // 게임 소개 함수
 int intro() {
     int dip_value = 0;
@@ -557,8 +576,9 @@ int intro() {
 
     if (dip_value != 0) {
         blink_fnd();
-        blink_led();
-        print_baseball_message();
+        blink_led(0); // Default blink
+        display_baseball_message(); // Dot Matrix에 "BASEBALL" 표시
+        usleep(500000); // 0.5초 대기
     }
     return dip_value;
 }
