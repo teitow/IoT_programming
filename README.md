@@ -96,7 +96,10 @@
 
 ## 시연 영상
 
-편집된 영상: [https://youtu.be/2-bPniCmVw4](https://youtu.be/2-bPniCmVw4)
+### 편집된 영상
+[![Edited Video](https://img.youtube.com/vi/2-bPniCmVw4/0.jpg)](https://youtu.be/2-bPniCmVw4)
 
-무편집 영상: [https://youtu.be/fU27BnqnGxc](https://youtu.be/fU27BnqnGxc)
+### 무편집 영상
+[![Unedited Video](https://img.youtube.com/vi/fU27BnqnGxc/0.jpg)](https://youtu.be/fU27BnqnGxc)
+
 
