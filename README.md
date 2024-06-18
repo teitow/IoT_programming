@@ -94,4 +94,9 @@
 ## 게임 플로우차트
 <img src="Document/발표자료/image/숫자야구게임플로우차트.drawio.png" alt="숫자야구게임 플로우차트" width="50%" height="50%">
 
+## 시연 영상
+
+편집된 영상: [https://youtu.be/2-bPniCmVw4](https://youtu.be/2-bPniCmVw4)
+
+무편집 영상: [https://youtu.be/fU27BnqnGxc](https://youtu.be/fU27BnqnGxc)
 
